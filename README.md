@@ -15,7 +15,7 @@ Run the matlab code `Simulation.m` which will load the required system and contr
 3. [Rolf Findeisen - TU Darmstadt](https://www.ccps.tu-darmstadt.de/ccps/team_ccps/team_details_103936.en.jsp)
 
 # Funding Acknowledgement
-V. Renganathan has been supported by the *European Research Council (ERC)* under the European Union’s Horizon 2020 research and innovation program under grant agreement No `834142 - Scalable Control`. M. Pfefferkorn and R. Findeisen are supported by the *German Research Foundation* under the `Research Training Group 2297`.
+V. Renganathan has been supported by the *European Research Council (ERC)* under the European Union’s Horizon 2020 research and innovation program under grant agreement No: `834142 - Scalable Control`. M. Pfefferkorn and R. Findeisen are supported by the *German Research Foundation* under the `Research Training Group 2297`.
 
 # Affiliation
 1. [Department of Automatic Control, Lund University, Sweden](https://control.lth.se)
