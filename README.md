@@ -18,5 +18,5 @@ Run the matlab code `Simulation.m` which will load the required system and contr
 V. Renganathan has been supported by the *European Research Council (ERC)* under the European Union’s Horizon 2020 research and innovation program under grant agreement No: `834142 - Scalable Control`. M. Pfefferkorn and R. Findeisen are supported by the *German Research Foundation* under the `Research Training Group 2297`.
 
 # Affiliation
-1. [Department of Automatic Control, Lund University, Sweden](https://control.lth.se)
-2. [Control and Cyber-Physical Systems Laboratory (CCPS) at the TU Darmstadt, Germany](https://www.ccps.tu-darmstadt.de/ccps/index.en.jsp)
+1. [Control and Cyber-Physical Systems Laboratory (CCPS) at the TU Darmstadt, Germany](https://www.ccps.tu-darmstadt.de/ccps/index.en.jsp)
+2. [Department of Automatic Control, Lund University, Sweden](https://control.lth.se)
