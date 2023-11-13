@@ -2,7 +2,15 @@ clc; clear all; close all;
 
 rng('default');
 
+% set properties for plotting
+set(groot,'defaultAxesTickLabelInterpreter','latex');  
+set(groot,'defaulttextinterpreter','latex');
+set(groot,'defaultLegendInterpreter','latex');
+
 %% === Initialization ================================================== %%
+
+% Tightening scheme: exact or robust
+tightening = 'robust';
 
 % Load parameters
 Parameters
@@ -23,12 +31,18 @@ u_analytic_exact = zeros(p.nu, length(t)-1);
 u_analytic_robust = u_analytic_exact;
 
 % Regret
+regret_total = zeros(1, length(t)-1);  
 regret_numeric = zeros(1, length(t)-1);
 regret_analytic = zeros(1, length(t)-1);
-regret_analytic_v2 = regret_analytic;
-regret_analytic_unconstrained = regret_analytic_v2;
+regret_closed_loop = zeros(1, length(t)-1);
+
 
 %% === Closed-Loop Simulation ========================================== %%
+
+% Set flag to record when both systems enters the set Phi
+notInPhiFlag = 1;
+exactSystemInPhi = 0;
+robustSystemInPhi = 0;
 
 % Simulation loop
 for k = 1 : 1 : length(t)-1
@@ -54,14 +68,24 @@ for k = 1 : 1 : length(t)-1
     u_numeric_robust(k) = u_seq_numeric_robust(1);
     
     % Compute disturbance (the same for both cases for comparability)
-    w = mvnrnd([0 0], p.Sigma_w)';
+    % w = mvnrnd([0 0], p.Sigma_w)';
+    w = mvlaprnd(2, zeros(2,1), p.Sigma_w, 1);
+    
     
     % Apply optimal input to the system
     x_numeric_exact(:, k+1) = p.model.A * x_numeric_exact(:, k) + p.model.B * u_numeric_exact(k) + w;
     x_numeric_robust(:, k+1) = p.model.A * x_numeric_robust(:, k) + p.model.B * u_numeric_robust(k) + w;
     
-    % Compute regret
+    % Compute regret (Open Loop)
     regret_numeric(k) = fval_numeric_robust - fval_numeric_exact;
+    
+    % Compute closed loop regret
+    state_contribution = MatrixWeightedNorm(x_numeric_robust, Q) - MatrixWeightedNorm(x_numeric_exact, Q);
+    control_contribution = MatrixWeightedNorm(u_numeric_robust, R) - MatrixWeightedNorm(u_numeric_exact, R);
+    regret_closed_loop(k) = state_contribution + control_contribution;
+    
+    % compute infinite horizon total regret
+    regret_total(k) = regret_numeric(k) + regret_closed_loop(k);
     
     % =================================================================== %
     % Analytic solution of QP
@@ -84,7 +108,7 @@ for k = 1 : 1 : length(t)-1
     
     % If no constraints are active, use the unconstrained optimum
     if ~any(idx_active_exact)
-        
+        exactSystemInPhi = 1;
         u_seq_analytic_exact = -p.H_inv * p.fT(x_numeric_exact(:, k))';      
         u_analytic_exact(k) = u_seq_analytic_exact(1);
         
@@ -110,7 +134,7 @@ for k = 1 : 1 : length(t)-1
     
     % If no constraints are active, use the unconstrained optimum
     if ~any(idx_active_robust)
-        
+        robustSystemInPhi = 1;
         u_seq_analytic_robust = -p.H_inv * p.fT(x_numeric_robust(:, k))';      
         u_analytic_robust(k) = u_seq_analytic_robust(1);
         
@@ -132,7 +156,11 @@ for k = 1 : 1 : length(t)-1
         
     end
     
-    %%%% Regret
+    % Record the time when both systems enter the set Phi
+    if exactSystemInPhi && robustSystemInPhi && notInPhiFlag
+        notInPhiFlag = 0;
+        phiTimeEnter = k;
+    end
     
     % Compute regret
     fval_analytic_exact = 1/2 * u_seq_analytic_exact' * p.H * u_seq_analytic_exact + ...
@@ -144,209 +172,178 @@ for k = 1 : 1 : length(t)-1
     
     regret_analytic(k) = fval_analytic_robust - fval_analytic_exact;
     
-    %%%% Alternative computation of regret with more details for analytical
-    %%%% insights
-    
-    % Split active constraints explicitly in active original input and 
-    % original state constraints
-    n_input_constrs = size(p.Ju, 1);
-    n_state_constrs = size(p.Fu, 1);
-    
-    idx_active_input_exact = idx_active_exact(1:n_input_constrs);
-    idx_active_input_robust = idx_active_robust(1:n_input_constrs);
-    idx_active_state_exact = idx_active_exact(n_input_constrs+1:end);
-    idx_active_state_robust = idx_active_robust(n_input_constrs+1:end);
-    
-    % Extract parts of the constraint that correspond to active constraints
-    g_tilde_exact = p.bx(idx_active_state_exact);
-    g_tilde_robust = p.bx(idx_active_state_robust);
-    
-    F_tilde_A_exact = p.Jx_M(idx_active_state_exact, :);
-    F_tilde_A_robust = p.Jx_M(idx_active_state_robust, :);
-    
-    d_tilde_exact = p.bu(idx_active_input_exact);
-    d_tilde_robust = p.bu(idx_active_input_robust);
-    
-    M_tilde_robust = [p.Ju; p.Fu]; M_tilde_robust = M_tilde_robust(idx_active_robust, :);
-    M_tilde_exact = [p.Ju; p.Fu]; M_tilde_exact = M_tilde_exact(idx_active_exact, :);
-    
-    V_exact = p.H_inv * M_tilde_exact' / (M_tilde_exact * p.H_inv * M_tilde_exact' + 1E-08 * eye(size(M_tilde_exact, 1)));
-    V_robust = p.H_inv * M_tilde_robust' / (M_tilde_robust * p.H_inv * M_tilde_robust' + 1E-08 * eye(size(M_tilde_robust, 1)));
-    
-    V1_exact = V_exact(:, 1:numel(d_tilde_exact));
-    V2_exact = V_exact(:, numel(d_tilde_exact)+1:end);
-    
-    V1_robust = V_robust(:, 1:numel(d_tilde_robust));
-    V2_robust = V_robust(:, numel(d_tilde_robust)+1:end);
-    
-    phi_tilde_exact = p.phi_ex(idx_active_state_exact);
-    phi_tilde_robust = p.phi_dr(idx_active_state_robust);
-    
-    z_tilde_exact = p.z(idx_active_state_exact);
-    z_tilde_robust = p.z(idx_active_state_robust);
-    
-    % The following was only used to validate the previous computations
-%     u_seq_test_exact = (V_exact * M_tilde_exact * p.H_inv - p.H_inv) * p.fT_tilde' * x_numeric_exact(:, k) + V1_exact * d_tilde_exact ...
-%         + V2_exact * (g_tilde_exact - F_tilde_A_exact * x_numeric_exact(:, k)) - V2_exact * diag(phi_tilde_exact) * z_tilde_exact;
-%     
-%     u_analytic_exact(k) = u_seq_test_exact(1);
-%     
-%     u_seq_test_robust = (V_robust * M_tilde_robust * p.H_inv - p.H_inv) * p.fT_tilde' * x_numeric_robust(:, k) + V1_robust * d_tilde_robust ...
-%         + V2_robust * (g_tilde_robust - F_tilde_A_robust * x_numeric_robust(:, k)) - V2_robust * diag(phi_tilde_robust) * z_tilde_robust;
-%     
-%     u_analytic_robust(k) = u_seq_test_robust(1);
-    
-    % Define constants for short-hand notion of the optimal input sequence.
-    % This is done only once for exact and robust as the following holds
-    % only when the same constraints are active for both schemes
-    alpha_exact = (V_exact * M_tilde_exact * p.H_inv - p.H_inv) * p.fT_tilde' - V2_exact * F_tilde_A_exact; 
-    alpha_robust = (V_robust * M_tilde_robust * p.H_inv - p.H_inv) * p.fT_tilde' - V2_robust * F_tilde_A_robust;
-    gamma_exact = V1_exact * d_tilde_exact + V2_exact * g_tilde_exact;
-    gamma_robust = V1_robust * d_tilde_robust + V2_robust * g_tilde_robust;
-    
-    u_seq_test_exact = alpha_exact * x_numeric_exact(:, k) - V2_exact * diag(phi_tilde_exact) * z_tilde_exact + gamma_exact;
-    u_seq_test_robust = alpha_robust * x_numeric_robust(:, k) - V2_robust * diag(phi_tilde_robust) * z_tilde_robust + gamma_robust;
-    
-    u_analytic_exact(k) = u_seq_test_exact(1);
-    u_analytic_robust(k) = u_seq_test_robust(1);
-    
-    alpha = alpha_exact;
-    gamma = gamma_exact;
-    
-    % Precompute matrix expressions
-    Lambda_1 = 1/2 * alpha' * p.H * alpha + 1/2 * (p.fT_tilde * alpha + alpha' * p.fT_tilde') + p.AT_Q_A;
-    Lambda_2 = 1/2 * V2_exact' * p.H * V2_exact;
-    Lambda_3 = 1/2 * (p.fT_tilde * V2_exact + alpha' * p.H * V2_exact);
-    Lambda_4 = p.fT_tilde * gamma + alpha' * p.H * gamma;
-    Lambda_5 = V2_exact' * p.H * gamma;
-    
-    % Compute regret using its more detailled representation (only valid
-    % when the same constraints are active for both schemes)
-    if all(idx_active_exact == idx_active_robust)
-       
-        % Precompute quantities of interes
-        dx_m = x_numeric_exact(:, k) - x_numeric_robust(:, k);
-        dx_p = x_numeric_exact(:, k) + x_numeric_robust(:, k);
-        
-        dphi_m = diag(phi_tilde_exact - phi_tilde_robust);
-        dphi_p = diag(phi_tilde_exact + phi_tilde_robust);
-        
-%         du_m = u_seq_test_exact - u_seq_test_robust;
-%         du_p = u_seq_test_exact + u_seq_test_robust;
-        
-        du_m = alpha * dx_m - V2_exact * dphi_m * z_tilde_exact;
-        du_p = alpha * dx_p - V2_exact * dphi_p * z_tilde_exact + 2 * gamma;
-        
-%         regret_analytic_v2(k) = 1/2 * du_m' * p.H * du_p ...
-%             + x_numeric_exact(:, k)' * p.fT_tilde * u_seq_test_exact ...
-%             - x_numeric_robust(:, k)' * p.fT_tilde * u_seq_test_robust ...
-%             + dx_m' * p.AT_Q_A * dx_p;
-        
-%         regret_analytic_v2(k) = 1/2 * (alpha * dx_m - V2_exact * dphi_m * z_tilde_exact)' * p.H * (alpha * dx_p - V2_exact * dphi_p * z_tilde_exact + 2 * gamma) ...
-%             + x_numeric_exact(:, k)' * p.fT_tilde * (alpha * x_numeric_exact(:, k) - V2_exact * diag(phi_tilde_exact) * z_tilde_exact + gamma) ...
-%             - x_numeric_robust(:, k)' * p.fT_tilde * (alpha * x_numeric_robust(:, k) - V2_exact * diag(phi_tilde_robust) * z_tilde_exact + gamma) ...
-%             + dx_m' * p.AT_Q_A * dx_p;
-        
-%         regret_analytic_v2(k) = 1/2 * dx_m' * alpha' * p.H * alpha * dx_p + 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * V2_exact * dphi_p * z_tilde_exact ...
-%             -1/2 * dx_m' * alpha' * p.H * V2_exact * dphi_p * z_tilde_exact - 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * alpha * dx_p ...
-%             + dx_m' * alpha' * p.H * gamma - z_tilde_exact' * dphi_m * V2_exact' * p.H * gamma ...        
-%             + x_numeric_exact(:, k)' * p.fT_tilde * (alpha * x_numeric_exact(:, k) - V2_exact * diag(phi_tilde_exact) * z_tilde_exact + gamma) ...
-%             - x_numeric_robust(:, k)' * p.fT_tilde * (alpha * x_numeric_robust(:, k) - V2_exact * diag(phi_tilde_robust) * z_tilde_exact + gamma) ...
-%             + dx_m' * p.AT_Q_A * dx_p;
-        
-%         regret_analytic_v2(k) = 1/2 * dx_m' * alpha' * p.H * alpha * dx_p + 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * V2_exact * dphi_p * z_tilde_exact ...
-%             -1/2 * dx_m' * alpha' * p.H * V2_exact * dphi_p * z_tilde_exact - 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * alpha * dx_p ...
-%             + dx_m' * alpha' * p.H * gamma - z_tilde_exact' * dphi_m * V2_exact' * p.H * gamma ...             
-%             + x_numeric_exact(:, k)' * p.fT_tilde * alpha * x_numeric_exact(:, k) - x_numeric_robust(:, k)' * p.fT_tilde * alpha * x_numeric_robust(:, k) ...
-%             - x_numeric_exact(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_exact) * z_tilde_exact + x_numeric_robust(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_robust) * z_tilde_exact ...
-%             + x_numeric_exact(:, k)' * p.fT_tilde * gamma - x_numeric_robust(:, k)' * p.fT_tilde * gamma ...           
-%             + dx_m' * p.AT_Q_A * dx_p;
-        
-%         regret_analytic_v2(k) = dx_m' * Lambda_1 * dx_p + 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * V2_exact * dphi_p * z_tilde_exact ...
-%             -1/2 * dx_m' * alpha' * p.H * V2_exact * dphi_p * z_tilde_exact - 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * alpha * dx_p ...
-%             + dx_m' * alpha' * p.H * gamma - z_tilde_exact' * dphi_m * V2_exact' * p.H * gamma ...             
-%             - x_numeric_exact(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_exact) * z_tilde_exact + x_numeric_robust(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_robust) * z_tilde_exact ...
-%             + x_numeric_exact(:, k)' * p.fT_tilde * gamma - x_numeric_robust(:, k)' * p.fT_tilde * gamma ...
-%             - x_numeric_exact(:, k)' * p.fT_tilde * alpha * x_numeric_robust(:, k) + x_numeric_robust(:, k)' * p.fT_tilde * alpha * x_numeric_exact(:, k);
-        
-%         regret_analytic_v2(k) = dx_m' * Lambda_1 * dx_p + 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * V2_exact * dphi_p * z_tilde_exact ...
-%             -1/2 * dx_m' * alpha' * p.H * V2_exact * dphi_p * z_tilde_exact - 1/2 * z_tilde_exact' * dphi_m * V2_exact' * p.H * alpha * dx_p ...
-%             + dx_m' * alpha' * p.H * gamma - z_tilde_exact' * dphi_m * V2_exact' * p.H * gamma ...             
-%             - x_numeric_exact(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_exact) * z_tilde_exact + x_numeric_robust(:, k)' * p.fT_tilde * V2_exact * diag(phi_tilde_robust) * z_tilde_exact ...
-%             + x_numeric_exact(:, k)' * p.fT_tilde * gamma - x_numeric_robust(:, k)' * p.fT_tilde * gamma;
-        
-        regret_analytic_v2(k) = dx_m' * Lambda_1 * dx_p ...
-            + z_tilde_exact' * dphi_m * Lambda_2 * dphi_p * z_tilde_exact ...
-            - dx_m' * Lambda_3 * dphi_p * z_tilde_exact ...
-            - dx_p' * Lambda_3 * dphi_m * z_tilde_exact ...
-            + dx_m' * Lambda_4 ...
-            - z_tilde_exact' * dphi_m * Lambda_5;
-        
-        regret_analytic_unconstrained(k) = -dx_m' * (p.AT_Q_A - 1/2 * p.fT_tilde * p.H_inv * p.fT_tilde') * dx_p;
-        
-        % In my notes, I defined regret as "exact minus robust", while I
-        % implemented regret here as "robust minus exact"
-        regret_analytic_v2(k) = -regret_analytic_v2(k);
-        
-    else
-        
-        regret_analytic_v2(k) = NaN;
-        
-    end
-    
-    
 end
+
+% Compute the accumuated numeric and analytic regrets
+cumulative_regret_numeric = cumsum(regret_numeric);
+cumulative_regret_analytic = cumsum(regret_analytic);
+
+% Display the time when both systems entered the set Phi
+fprintf('Time step when both systems enter Phi: %d \n', phiTimeEnter);
 
 %% === Plotting ======================================================== %%
 
 % Comparision of closed-loop solutions for exact and distributionally 
 % robust tightening of state constraints
-figure(1);
-
-subplot(1, 3, 1); hold on; grid on;
-plot(t(1:end-1), u_numeric_exact, 'Linewidth', 2);
-plot(t(1:end-1), u_numeric_robust, ':', 'Linewidth', 2);
+figure(1); hold on; grid on;
+plot(t(1:end-1), u_numeric_exact, 'Linewidth', 5);
+plot(t(1:end-1), u_numeric_robust, ':', 'Linewidth', 5);
+% Plot the u_max and u_min
+plot(t(1:end-1), bu(1)*ones(size(t(1:end-1))), '--', 'Linewidth', 5);
+plot(t(1:end-1), -bu(2)*ones(size(t(1:end-1))), '--', 'Linewidth', 5);
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = -bu(2):bu(1);
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
 xlabel('t (s)'); ylabel('u');
 xlim([t(1), t(end)]);
-legend('Exact Tightening', 'Robust Tightening');
+text(4.3,-bu(2)+1,'$\tau_{\Phi}$', 'FontSize', 50);
+legend('Exact', 'Dist. Robust', '$u_{\mathrm{max}}$', '$u_{\mathrm{min}}$');
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 70);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
 
-subplot(1, 3, 2); hold on; grid on;
-plot(t, x_numeric_exact(1, :), 'Linewidth', 2);
-plot(t, x_numeric_robust(1, :), ':', 'Linewidth', 2);
-xlabel('t (s)'); ylabel('x_1');
+figure(2); hold on; grid on;
+plot(t, x_numeric_exact(1, :), 'Linewidth', 5);
+plot(t, x_numeric_robust(1, :), ':', 'Linewidth', 5);
+% Plot the x_1_max and x_1_min
+plot(t, bx(1)*ones(size(t)), '--', 'Linewidth', 5);
+plot(t, -bx(2)*ones(size(t)), '--', 'Linewidth', 5);
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = -bx(2):bx(1);
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
+xlabel('t (s)'); ylabel('$x_1$');
 xlim([t(1), t(end)]);
+text(4.3,-bx(2)+1,'$\tau_{\Phi}$', 'FontSize', 50);
+legend('Exact', 'Dist. Robust', '$x_{\mathrm{max}}$', '$x_{\mathrm{min}}$');
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 70);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
 
-subplot(1, 3, 3); hold on; grid on;
-plot(t, x_numeric_exact(2, :), 'Linewidth', 2);
-plot(t, x_numeric_robust(2, :), ':', 'Linewidth', 2);
-xlabel('t (s)'); ylabel('x_2');
+figure(3); hold on; grid on;
+plot(t, x_numeric_exact(2, :), 'Linewidth', 5);
+plot(t, x_numeric_robust(2, :), ':', 'Linewidth', 5);
+% Plot the x_2_max and x_2_min
+plot(t, bx(3)*ones(size(t)), '--', 'Linewidth', 5);
+plot(t, -bx(4)*ones(size(t)), '--', 'Linewidth', 5);
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = -bx(4):bx(3);
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
+xlabel('t (s)'); ylabel('$x_2$');
+text(4.3,-bx(4)+0.5,'$\tau_{\Phi}$', 'FontSize', 50);
 xlim([t(1), t(end)]);
+legend('Exact', 'Dist. Robust', '$x_{\mathrm{max}}$', '$x_{\mathrm{min}}$');
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 70);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
 
-% Comparison of numerically and anlytically computed control inputs
-figure(2);
-
-subplot(1, 2, 1); hold on; grid on;
-plot(t(1:end-1), u_numeric_exact, 'Linewidth', 2);
-plot(t(1:end-1), u_analytic_exact, ':', 'Linewidth', 2);
-xlabel('t (s)'); ylabel('u');
-xlim([t(1), t(end)]);
-legend('Numeric', 'Analytic');
-title('Exact Tightening');
-
-subplot(1, 2, 2); hold on; grid on;
-plot(t(1:end-1), u_numeric_robust, 'Linewidth', 2);
-plot(t(1:end-1), u_analytic_robust, ':', 'Linewidth', 2);
-xlabel('t (s)'); ylabel('u');
-xlim([t(1), t(end)]);
-legend('Numeric', 'Analytic');
-title('Dist. Robust Tightening');
 
 % Regret (numerically and analytically computed)
-figure(3); hold on; grid on;
+figure(4); hold on; grid on;
 plot(t(1:end-1), regret_numeric, 'Linewidth', 2);
 plot(t(1:end-1), regret_analytic, ':', 'Linewidth', 2);
-plot(t(1:end-1), regret_analytic_v2, 'gx', 'Linewidth', 2, 'Markersize', 3, 'Linestyle', 'none');
-plot(t(1:end-1), regret_analytic_unconstrained, 'r-');
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = -20:80;
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
 xlabel('t (s)'); ylabel('Regret');
 legend('Numeric', 'Analytic');
+text(4.3,-15,'$\tau_{\Phi}$', 'FontSize', 50);
 xlim([t(1), t(end)]);
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 50);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+
+% Accumuated Regret (numerically and analytically computed)
+figure(5); hold on; grid on;
+plot(t(1:end-1), cumulative_regret_numeric, 'Linewidth', 2);
+plot(t(1:end-1), cumulative_regret_analytic, ':', 'Linewidth', 2);
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = 0:2500;
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
+xlabel('t (s)'); ylabel('Cumulative Regret');
+legend('Numeric', 'Analytic');
+xlim([t(1), t(end)]);
+text(4.3,200,'$\tau_{\Phi}$', 'FontSize', 50);
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 50);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+
+% Total Regret (Numerically Computed)
+figure(6); hold on; grid on;
+plot(t(1:end-1), regret_numeric, 'Linewidth', 2);
+plot(t(1:end-1), regret_closed_loop, 'Linewidth', 2);
+plot(t(1:end-1), regret_total, 'Linewidth', 2);
+% Plot the start of time entering into set Phi
+phiEntryTime = 4.1;
+yVector = min(regret_closed_loop) - 10:max(regret_total);
+plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
+xlabel('t (s)'); 
+legend('$R^{\mathrm{ol}}$', '$R^{\mathrm{cl}}$', '$R^{\mathrm{total}}$');
+xlim([t(1), t(end)]);
+ylim([min(regret_closed_loop) - 10, max(regret_total) + 20]);
+text(4.3,20,'$\tau_{\Phi}$', 'FontSize', 50);
+a = findobj(gcf, 'type', 'axes');
+h = findobj(gcf, 'type', 'line');
+set(h, 'linewidth', 10);
+set(a, 'linewidth', 10);
+set(a, 'FontSize', 50);
+gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+
+% % Comparison of numerically and anlytically computed control inputs
+% figure(2);
+% 
+% subplot(1, 2, 1); hold on; grid on;
+% plot(t(1:end-1), u_numeric_exact, 'Linewidth', 2);
+% plot(t(1:end-1), u_analytic_exact, ':', 'Linewidth', 2);
+% xlabel('t (s)'); ylabel('u');
+% xlim([t(1), t(end)]);
+% legend('Numeric', 'Analytic');
+% title('Exact Tightening');
+% 
+% subplot(1, 2, 2); hold on; grid on;
+% plot(t(1:end-1), u_numeric_robust, 'Linewidth', 2);
+% plot(t(1:end-1), u_analytic_robust, ':', 'Linewidth', 2);
+% xlabel('t (s)'); ylabel('u');
+% xlim([t(1), t(end)]);
+% legend('Numeric', 'Analytic');
+% title('Dist. Robust Tightening');
+% a = findobj(gcf, 'type', 'axes');
+% h = findobj(gcf, 'type', 'line');
+% set(h, 'linewidth', 4);
+% set(a, 'linewidth', 4);
+% set(a, 'FontSize', 40);
+% gca.XAxis.TickLabelFormat = '\\textbf{%g}';
+% gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+
+function [normResult] = MatrixWeightedNorm(zeta, Z)
+    [~, zeta_n] = size(zeta);
+    normResult = 0;
+    for zz = 1:zeta_n
+        normResult = normResult + zeta(:, zz)'*Z*zeta(:, zz);
+    end
+end
