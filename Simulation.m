@@ -6,6 +6,7 @@ rng('default');
 set(groot,'defaultAxesTickLabelInterpreter','latex');  
 set(groot,'defaulttextinterpreter','latex');
 set(groot,'defaultLegendInterpreter','latex');
+addpath(genpath('src'));
 
 %% === Initialization ================================================== %%
 
@@ -183,31 +184,8 @@ fprintf('Time step when both systems enter Phi: %d \n', phiTimeEnter);
 
 %% === Plotting ======================================================== %%
 
-% Comparision of closed-loop solutions for exact and distributionally 
-% robust tightening of state constraints
-figure(1); hold on; grid on;
-plot(t(1:end-1), u_numeric_exact, 'Linewidth', 5);
-plot(t(1:end-1), u_numeric_robust, ':', 'Linewidth', 5);
-% Plot the u_max and u_min
-plot(t(1:end-1), bu(1)*ones(size(t(1:end-1))), '--', 'Linewidth', 5);
-plot(t(1:end-1), -bu(2)*ones(size(t(1:end-1))), '--', 'Linewidth', 5);
-% Plot the start of time entering into set Phi
-phiEntryTime = 4.1;
-yVector = -bu(2):bu(1);
-plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
-xlabel('t (s)'); ylabel('u');
-xlim([t(1), t(end)]);
-text(4.3,-bu(2)+1,'$\tau_{\Phi}$', 'FontSize', 50);
-legend('Exact', 'Dist. Robust', '$u_{\mathrm{max}}$', '$u_{\mathrm{min}}$');
-a = findobj(gcf, 'type', 'axes');
-h = findobj(gcf, 'type', 'line');
-set(h, 'linewidth', 10);
-set(a, 'linewidth', 10);
-set(a, 'FontSize', 70);
-gca.XAxis.TickLabelFormat = '\\textbf{%g}';
-gca.YAxis.TickLabelFormat = '\\textbf{%g}';
-
-figure(2); hold on; grid on;
+figure1 = figure('Color',[1 1 1]);
+hold on; grid on;
 plot(t, x_numeric_exact(1, :), 'Linewidth', 5);
 plot(t, x_numeric_robust(1, :), ':', 'Linewidth', 5);
 % Plot the x_1_max and x_1_min
@@ -228,8 +206,11 @@ set(a, 'linewidth', 10);
 set(a, 'FontSize', 70);
 gca.XAxis.TickLabelFormat = '\\textbf{%g}';
 gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+% Convert matlab figs to tikz for pgfplots in latex document.
+matlab2tikz('figurehandle',figure1,'filename','x1.tex' ,'standalone', true, 'showInfo', false);
 
-figure(3); hold on; grid on;
+figure2 = figure('Color',[1 1 1]);
+hold on; grid on;
 plot(t, x_numeric_exact(2, :), 'Linewidth', 5);
 plot(t, x_numeric_robust(2, :), ':', 'Linewidth', 5);
 % Plot the x_2_max and x_2_min
@@ -250,50 +231,45 @@ set(a, 'linewidth', 10);
 set(a, 'FontSize', 70);
 gca.XAxis.TickLabelFormat = '\\textbf{%g}';
 gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+% Convert matlab figs to tikz for pgfplots in latex document.
+matlab2tikz('figurehandle',figure2,'filename','x2.tex' ,'standalone', true, 'showInfo', false);
 
 
-% Regret (numerically and analytically computed)
-figure(4); hold on; grid on;
-plot(t(1:end-1), regret_numeric, 'Linewidth', 2);
-plot(t(1:end-1), regret_analytic, ':', 'Linewidth', 2);
+figure4 = figure('Color',[1 1 1]);
+hold on; grid on;
+% First state
+plot(t, x_numeric_exact(1, :), '-.', 'Linewidth', 5);
+plot(t, x_numeric_robust(1, :), ':', 'Linewidth', 5);
+% Second state
+plot(t, x_numeric_exact(2, :), '-.', 'Linewidth', 5);
+plot(t, x_numeric_robust(2, :), ':', 'Linewidth', 5);
+% Plot the x_1_max and x_1_min
+plot(t, bx(1)*ones(size(t)), '--', 'Linewidth', 5);
+plot(t, -bx(2)*ones(size(t)), '--', 'Linewidth', 5);
+% Plot the x_2_max and x_2_min
+plot(t, bx(3)*ones(size(t)), '--', 'Linewidth', 5);
+plot(t, -bx(4)*ones(size(t)), '--', 'Linewidth', 5);
 % Plot the start of time entering into set Phi
 phiEntryTime = 4.1;
-yVector = -20:80;
+yVector = -bx(4):bx(1);
 plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
-xlabel('t (s)'); ylabel('Regret');
-legend('Numeric', 'Analytic');
-text(4.3,-15,'$\tau_{\Phi}$', 'FontSize', 50);
+xlabel('t (s)');
+text(4.3,-bx(4)+0.5,'$\tau_{\Phi}$', 'FontSize', 50);
 xlim([t(1), t(end)]);
+legend('$[x^{\star}]_1$', '$[x^{\dagger}]_1$', '$[x^{\star}]_2$', '$[x^{\dagger}]_2$', '$x^1_{\mathrm{max}}$', '$x^1_{\mathrm{min}}$', '$x^2_{\mathrm{max}}$', '$x^2_{\mathrm{min}}$', 'NumColumns',2);
 a = findobj(gcf, 'type', 'axes');
 h = findobj(gcf, 'type', 'line');
 set(h, 'linewidth', 10);
 set(a, 'linewidth', 10);
-set(a, 'FontSize', 50);
+set(a, 'FontSize', 70);
 gca.XAxis.TickLabelFormat = '\\textbf{%g}';
 gca.YAxis.TickLabelFormat = '\\textbf{%g}';
-
-% Accumuated Regret (numerically and analytically computed)
-figure(5); hold on; grid on;
-plot(t(1:end-1), cumulative_regret_numeric, 'Linewidth', 2);
-plot(t(1:end-1), cumulative_regret_analytic, ':', 'Linewidth', 2);
-% Plot the start of time entering into set Phi
-phiEntryTime = 4.1;
-yVector = 0:2500;
-plot(phiEntryTime*ones(size(yVector)), yVector, '--', 'Linewidth', 5);
-xlabel('t (s)'); ylabel('Cumulative Regret');
-legend('Numeric', 'Analytic');
-xlim([t(1), t(end)]);
-text(4.3,200,'$\tau_{\Phi}$', 'FontSize', 50);
-a = findobj(gcf, 'type', 'axes');
-h = findobj(gcf, 'type', 'line');
-set(h, 'linewidth', 10);
-set(a, 'linewidth', 10);
-set(a, 'FontSize', 50);
-gca.XAxis.TickLabelFormat = '\\textbf{%g}';
-gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+% Convert matlab figs to tikz for pgfplots in latex document.
+matlab2tikz('figurehandle',figure4,'filename','states.tex' ,'standalone', true, 'showInfo', false);
 
 % Total Regret (Numerically Computed)
-figure(6); hold on; grid on;
+figure3 = figure('Color',[1 1 1]);
+hold on; grid on;
 plot(t(1:end-1), regret_numeric, 'Linewidth', 2);
 plot(t(1:end-1), regret_closed_loop, 'Linewidth', 2);
 plot(t(1:end-1), regret_total, 'Linewidth', 2);
@@ -313,32 +289,9 @@ set(a, 'linewidth', 10);
 set(a, 'FontSize', 50);
 gca.XAxis.TickLabelFormat = '\\textbf{%g}';
 gca.YAxis.TickLabelFormat = '\\textbf{%g}';
+% Convert matlab figs to tikz for pgfplots in latex document.
+matlab2tikz('figurehandle',figure3,'filename','regrets.tex' ,'standalone', true, 'showInfo', false);
 
-% % Comparison of numerically and anlytically computed control inputs
-% figure(2);
-% 
-% subplot(1, 2, 1); hold on; grid on;
-% plot(t(1:end-1), u_numeric_exact, 'Linewidth', 2);
-% plot(t(1:end-1), u_analytic_exact, ':', 'Linewidth', 2);
-% xlabel('t (s)'); ylabel('u');
-% xlim([t(1), t(end)]);
-% legend('Numeric', 'Analytic');
-% title('Exact Tightening');
-% 
-% subplot(1, 2, 2); hold on; grid on;
-% plot(t(1:end-1), u_numeric_robust, 'Linewidth', 2);
-% plot(t(1:end-1), u_analytic_robust, ':', 'Linewidth', 2);
-% xlabel('t (s)'); ylabel('u');
-% xlim([t(1), t(end)]);
-% legend('Numeric', 'Analytic');
-% title('Dist. Robust Tightening');
-% a = findobj(gcf, 'type', 'axes');
-% h = findobj(gcf, 'type', 'line');
-% set(h, 'linewidth', 4);
-% set(a, 'linewidth', 4);
-% set(a, 'FontSize', 40);
-% gca.XAxis.TickLabelFormat = '\\textbf{%g}';
-% gca.YAxis.TickLabelFormat = '\\textbf{%g}';
 
 function [normResult] = MatrixWeightedNorm(zeta, Z)
     [~, zeta_n] = size(zeta);

@@ -5,7 +5,7 @@
 % Initial, sampling and final time
 p.T0 = 0;
 p.Ts = 0.05;
-p.Tf = 6;
+p.Tf = 10;
 
 % Control / Prediction horizon
 p.N = 5;
@@ -25,7 +25,7 @@ p.nx = size(model.A, 2);
 p.nu = size(model.B, 2);
 
 % Covariance matrix of the process noise
-p.Sigma_w = 0.02^2 * eye(p.nx);
+p.Sigma_w = 0.01^2 * eye(p.nx);
 % p.Sigma_w = 0.01^2 * [0.7, 1.3] * [0.7; 1.3] + 1E-04 * eye(p.nx);
 
 % ======================================================================= %
@@ -101,10 +101,8 @@ p.H_inv = eye(size(p.H)) / p.H;
 
 % Compute the QP cost matrix f^T as a function of the initial condition
 p.fT = @(x)(2 * x' * M' * p.Lx * W);
-p.fT_tilde = 2 * M' * p.Lx * W;
 
 % Compute offset as a function of the initial condition
-p.AT_Q_A = M' * p.Lx * M;
 p.const = @(x)(x' * M' * p.Lx * M * x);
 
 % ======================================================================= %
@@ -122,7 +120,7 @@ p.bu = repmat(bu, p.N, 1);
 
 % Box constraints on each state along the horizon Jx x <= bx
 Jx = [1, 0; -1, 0; 0, 1; 0, -1];
-bx = [15; 4; 1.5; 4];
+bx = [11; 4; 1.5; 4]; % [15; 4; 1.5; 4];
 
 % Concatenate state constraints over the entire horizon
 Jx = repmat({Jx}, 1, p.N+1);
@@ -135,10 +133,9 @@ p.Fu = p.Jx * W;
 
 % Compute inhomogeneity for inequality constraints (dependent on initial
 % condition of the horizon)
-p.Jx_M = p.Jx * M;
 p.gu = @(x)(p.bx - p.Jx * M * x);
 
-% Compute covariance matrix of state sequence
+% Compute covaraince matrix of state sequence
 Sigma_x = repmat({p.Sigma_w}, 1, p.N);
 Sigma_x = blkdiag(Sigma_x{:});
 Sigma_x = V * Sigma_x * V';
@@ -158,7 +155,7 @@ end
 p.z = z;
 
 % Risk allocation
-Delta = 0.05;                                             % Joint risk
+Delta = 0.1;                                            % Joint risk
 delta = Delta / size(p.Jx, 1) * ones(size(p.Jx, 1), 1);  % Individual risks
 
 % Coefficients for distributionally robust tightening
