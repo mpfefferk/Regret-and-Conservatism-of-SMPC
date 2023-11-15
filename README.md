@@ -11,7 +11,7 @@ Run the matlab code `Simulation.m` which will load the required system and contr
 
 # Contributing Authors
 1. [Maik Pfefferkorn - TU Darmstadt](https://www.ccps.tu-darmstadt.de/ccps/team_ccps/team_details_109184.de.jsp)
-2. [Venkatraman Renganathan - Lund University](https://github.com/venkatramanrenganathan)
+2. [Venkatraman Renganathan - Lund University](https://venkatramanrenganathan.github.io)
 3. [Rolf Findeisen - TU Darmstadt](https://www.ccps.tu-darmstadt.de/ccps/team_ccps/team_details_103936.en.jsp)
 
 # Funding Acknowledgement
