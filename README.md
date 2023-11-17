@@ -1,7 +1,7 @@
 # Regret-and-Conservatism-of-SMPC
 This repository contains the Matlab code corresponding to the demonstration of the regret and conservatism of a constrained stochastic model predicitve control algorithm where the performance loss associated with the lack of knowledge about the true distribution of the stochastic system uncertainties is quantified as regret.
 
-**Associated Paper:** Maik Pfefferkorn, Venkatraman Renganathan and Rolf Findeisen, `Regret and Conservatism of Constrained Stochastic Model Predicitve Control`, Submitted to the IEEE Letters to Control Systems Society & American Control Conference, Toronto, Canada, 2024.
+**Associated Paper:** Maik Pfefferkorn, Venkatraman Renganathan and Rolf Findeisen, `Regret and Conservatism of Distributionally Robust Constrained Stochastic Model Predicitve Control`, Submitted to the IEEE Letters to Control Systems Society & American Control Conference, Toronto, Canada, 2024.
 
 # Dependencies
 - Matlab
