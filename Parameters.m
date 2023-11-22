@@ -120,7 +120,7 @@ p.bu = repmat(bu, p.N, 1);
 
 % Box constraints on each state along the horizon Jx x <= bx
 Jx = [1, 0; -1, 0; 0, 1; 0, -1];
-bx = [11; 4; 1.5; 4]; % [15; 4; 1.5; 4];
+bx = [11; 4; 1.5; 4];
 
 % Concatenate state constraints over the entire horizon
 Jx = repmat({Jx}, 1, p.N+1);
@@ -155,7 +155,7 @@ end
 p.z = z;
 
 % Risk allocation
-Delta = 0.1;                                            % Joint risk
+Delta = 0.1;                                             % Joint risk
 delta = Delta / size(p.Jx, 1) * ones(size(p.Jx, 1), 1);  % Individual risks
 
 % Coefficients for distributionally robust tightening
